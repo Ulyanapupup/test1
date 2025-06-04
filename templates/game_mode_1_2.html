@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Режим 1.2</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <h1>Режим 1.2 — компьютер угадывает</h1>
+
+  <div id="start">
+    <label>Загадайте число (от 0 до 100):</label>
+    <input id="secret" type="number" min="0" max="100" required>
+    <button onclick="startGame()">Играть</button>
+  </div>
+
+  <div id="chat" style="display:none;">
+    <div id="messages"></div>
+    <input id="answer" placeholder="да или нет">
+    <button onclick="sendAnswer()">Ответить</button>
+  </div>
+
+  <script>
+    function appendMsg(sender, text) {
+      const div = document.createElement('div');
+      div.innerHTML = `<strong>${sender}:</strong> ${text}`;
+      document.getElementById('messages').appendChild(div);
+    }
+
+    function startGame() {
+      const val = document.getElementById('secret').value;
+      if (val === "") return;
+      fetch('/start_1_2', {method: 'POST'})
+        .then(r => r.json())
+        .then(data => {
+          document.getElementById('start').style.display = 'none';
+          document.getElementById('chat').style.display = 'block';
+          appendMsg("Система", data.question);
+        });
+    }
+
+    function sendAnswer() {
+      const ans = document.getElementById('answer').value;
+      appendMsg("Вы", ans);
+      fetch('/answer_1_2', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({answer: ans})
+      })
+      .then(r => r.json())
+      .then(data => {
+        appendMsg("Система", data.response);
+        if (data.done) {
+          document.getElementById('answer').disabled = true;
+        }
+      });
+      document.getElementById('answer').value = '';
+    }
+  </script>
+</body>
+</html>
