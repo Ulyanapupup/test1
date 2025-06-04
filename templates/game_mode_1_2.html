@@ -1,61 +1,48 @@
+<!-- game_mode_1_2.html -->
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Режим 1.2</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <h1>Режим 1.2 — компьютер угадывает</h1>
+  <h1>Компьютер угадывает</h1>
 
-  <div id="start">
-    <label>Загадайте число (от 0 до 100):</label>
-    <input id="secret" type="number" min="0" max="100" required>
-    <button onclick="startGame()">Играть</button>
+  <div id="setup">
+    <label>Загадайте число от <span id="min-range-setup"></span> до <span id="max-range-setup"></span>:</label>
+    <input type="number" id="user-secret" />
+    <button id="start-button">Начать</button>
   </div>
 
-  <div id="chat" style="display:none;">
-    <div id="messages"></div>
-    <input id="answer" placeholder="да или нет">
-    <button onclick="sendAnswer()">Ответить</button>
+  <div id="game" style="display:none;">
+	<div id="chat">
+		<div id="messages"></div> <!-- Сюда будем добавлять сообщения -->
+  </div>
+  
+  <div id="input-area">
+    <input id="answer" placeholder="да / нет" />
+    <button id="send-button">Ответить</button>
+  </div>
+  
+  <br><hr><br>
+  
+  <div id="status">
+	  <p id="secret-number" style="font-weight:bold;"></p>
+	  <div id="result-banner-container"></div>
+	</div>
+
+    <button onclick="exitGame()">Выйти из игры</button>
   </div>
 
+  <!-- Сначала questionPool.js -->
+  <script src="{{ url_for('static', filename='questionPool.js') }}"></script>
+  <!-- Потом ваш основной скрипт -->
   <script>
-    function appendMsg(sender, text) {
-      const div = document.createElement('div');
-      div.innerHTML = `<strong>${sender}:</strong> ${text}`;
-      document.getElementById('messages').appendChild(div);
-    }
+	window.minRange = {{ min_range }};
+	window.maxRange = {{ max_range }};
+	</script>
+	<script src="{{ url_for('static', filename='game_mode_1_2.js') }}"></script>
 
-    function startGame() {
-      const val = document.getElementById('secret').value;
-      if (val === "") return;
-      fetch('/start_1_2', {method: 'POST'})
-        .then(r => r.json())
-        .then(data => {
-          document.getElementById('start').style.display = 'none';
-          document.getElementById('chat').style.display = 'block';
-          appendMsg("Система", data.question);
-        });
-    }
-
-    function sendAnswer() {
-      const ans = document.getElementById('answer').value;
-      appendMsg("Вы", ans);
-      fetch('/answer_1_2', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({answer: ans})
-      })
-      .then(r => r.json())
-      .then(data => {
-        appendMsg("Система", data.response);
-        if (data.done) {
-          document.getElementById('answer').disabled = true;
-        }
-      });
-      document.getElementById('answer').value = '';
-    }
-  </script>
 </body>
 </html>

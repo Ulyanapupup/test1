@@ -1,92 +1,136 @@
-import json, os
+# mode_1_2.py
+import math
+import random
 
-json_path = os.path.join('game_logic', 'questions_1_2.json')
+question_pool = [
+    {"text": "Число чётное", "fn": "is_even"},
+    {"text": "Число простое", "fn": "is_prime"},
+    {"text": "Число делится на 3", "fn": "is_div_3"},
+    {"text": "Число делится на 5", "fn": "is_div_5"},
+    {"text": "Число делится на 7", "fn": "is_div_7"},
+    {"text": "Число положительное", "fn": "is_positive", "condition": lambda n: n < 0},
+    {"text": "Число является квадратом", "fn": "is_square", "condition": lambda n: n >= 0},
+    {"text": "Число является кубом", "fn": "is_cube", "condition": lambda n: n >= 0},
+    {"text": "Модуль числа является квадратом", "fn": "abs_is_square", "condition": lambda n: n < 0},
+    {"text": "Модуль числа является кубом", "fn": "abs_is_cube", "condition": lambda n: n < 0},
+    {"text": "Число однозначное", "fn": "is_single_digit", "group": "digitSize"},
+    {"text": "Число двузначное", "fn": "is_two_digit", "group": "digitSize"},
+    {"text": "Число трехзначное", "fn": "is_three_digit", "group": "digitSize"},
+    {"text": "Сумма цифр числа — чётная", "fn": "sum_digits_even"}
+]
 
-with open(json_path, 'r', encoding='utf-8') as f:
-    question_map = json.load(f)
-
-possible_numbers = list(range(101))
-asked_questions = set()
-
-# Диапазон для бинарного поиска
-min_possible = 0
-max_possible = 100
-
-def reset():
-    global possible_numbers, asked_questions, min_possible, max_possible
-    possible_numbers = list(range(101))
-    asked_questions = set()
-    min_possible = 0
-    max_possible = 100
-
-def is_even(n): return n % 2 == 0
-def is_odd(n): return n % 2 == 1
-def is_prime(n):
-    if n < 2: return False
-    for i in range(2, int(n ** 0.5) + 1):
-        if n % i == 0: return False
-    return True
-
-question_functions = {
-    "is_even": is_even,
-    "is_odd": is_odd,
-    "is_prime": is_prime
+unique_functions = {
+    "is_even": lambda n: n % 2 == 0,
+    "is_prime": lambda n: n >= 2 and all(n % d != 0 for d in range(2, int(n ** 0.5) + 1)),
+    "is_div_3": lambda n: n % 3 == 0,
+    "is_div_5": lambda n: n % 5 == 0,
+    "is_div_7": lambda n: n % 7 == 0,
+    "is_square": lambda n: n >= 0 and math.isqrt(n) ** 2 == n,
+    "is_cube": lambda n: round(abs(n) ** (1 / 3)) ** 3 == abs(n),
+    "abs_is_square": lambda n: math.isqrt(abs(n)) ** 2 == abs(n),
+    "abs_is_cube": lambda n: round(abs(n) ** (1 / 3)) ** 3 == abs(n),
+    "is_positive": lambda n: n > 0,
+    "is_single_digit": lambda n: abs(n) < 10,
+    "is_two_digit": lambda n: 10 <= abs(n) < 100,
+    "is_three_digit": lambda n: 100 <= abs(n) < 1000,
+    "sum_digits_even": lambda n: sum(int(d) for d in str(abs(n))) % 2 == 0
 }
 
-# Уникальные логические вопросы
-unique_questions = {
-    "число чётное": is_even,
-    "число нечётное": is_odd,
-    "число простое": is_prime
-}
+class Game:
+    def __init__(self, secret, min_range, max_range):
+        self.finished = False
+        self.final_guess = None  # Последнее число, если система уверена
+        self.awaiting_final_confirmation = False
+        self.secret = secret
+        self.min_range = min_range
+        self.max_range = max_range
+        self.min = min_range
+        self.max = max_range
+        self.possible_numbers = list(range(min_range, max_range + 1))
+        self.asked_questions = set()
+        self.asked_range_questions = []
+        self.asked_digit_group = False
+        self.range_guessing_mode = False
+        self.current_question = None
+        self.remaining_questions = self._init_questions(secret)
 
-def next_question():
-    global min_possible, max_possible
+    def _init_questions(self, secret):
+        q_filtered = [q for q in question_pool if 'condition' not in q or q['condition'](secret)]
+        random.shuffle(q_filtered)
+        return q_filtered
 
-    # Если остался 1 вариант — угадываем
-    if len(possible_numbers) == 1:
-        return f"Я знаю! Это число {possible_numbers[0]}", True
+    def next_question(self):
+        if not self.range_guessing_mode:
+            while self.remaining_questions:
+                q = self.remaining_questions.pop(0)
+                if q.get("group") == "digitSize" and self.asked_digit_group:
+                    continue
+                self.current_question = q
+                return q["text"]
 
-    # Сначала — уникальные логические вопросы
-    for q in unique_questions:
-        if q not in asked_questions:
-            asked_questions.add(q)
-            return q, False
+            self.range_guessing_mode = True
 
-    # Затем — бинарный поиск
-    if min_possible >= max_possible:
-        return "Упс, вы меня запутали 🙃", True
+        # бинарный поиск
+        if len(self.possible_numbers) <= 1:
+            guess = self.possible_numbers[0] if self.possible_numbers else 'не найдено'
+            self.final_guess = guess
+            self.awaiting_final_confirmation = True
+            return f"Я знаю! Это число {guess}?"
 
-    mid = (min_possible + max_possible) // 2
-    question = f"больше {mid}"
-    asked_questions.add(question)
-    return f"Число {question}?", False
 
-def process_answer(user_answer):
-    global possible_numbers, min_possible, max_possible
+        mid = (self.min + self.max) // 2
+        while mid in self.asked_range_questions:
+            if mid == self.min:
+                mid = self.max
+            elif mid == self.max:
+                mid = self.min
+            else:
+                return "Вы меня запутали 🙃"
 
-    answer = user_answer.strip().lower()
-    if answer not in ["да", "нет"]:
-        return "Пожалуйста, отвечайте 'да' или 'нет'", False
+        self.asked_range_questions.append(mid)
+        self.current_question = {"type": "range", "value": mid, "text": f"Число больше {mid}"}
+        return self.current_question["text"]
 
-    last_question = list(asked_questions)[-1]
+    def process_answer(self, answer):
+        yes = answer.lower().strip() == "да"
+        
+        # Обработка финального ответа
+        if self.awaiting_final_confirmation:
+            self.finished = True
+            self.awaiting_final_confirmation = False
+            if yes:
+                return "Ура! Я угадала!"
+            else:
+                return "О нет, я ошиблась"
+  
+        if not self.current_question:
+            return "Нет текущего вопроса."
 
-    if last_question in unique_questions:
-        func = unique_questions[last_question]
-        yes = answer == "да"
-        possible_numbers = [n for n in possible_numbers if func(n) == yes]
-    elif "больше" in last_question:
-        number = int(last_question.split()[-1])
-        if answer == "да":
-            min_possible = number + 1
-            possible_numbers = [n for n in possible_numbers if n > number]
+        if self.current_question.get("type") == "range":
+            mid = self.current_question["value"]
+            if yes:
+                self.min = max(self.min, mid + 1)
+            else:
+                self.max = min(self.max, mid)
+            self.possible_numbers = [n for n in self.possible_numbers if self.min <= n <= self.max]
+
         else:
-            max_possible = number
-            possible_numbers = [n for n in possible_numbers if n <= number]
+            fn = self.current_question.get("fn")
+            if yes and self.current_question.get("group") == "digitSize":
+                self.asked_digit_group = True
+                self.remaining_questions = [q for q in self.remaining_questions if q.get("group") != "digitSize"]
 
-    if len(possible_numbers) == 1:
-        return f"Я знаю! Это число {possible_numbers[0]}", True
-    if len(possible_numbers) == 0:
-        return "Вы, похоже, ответили не последовательно 🙃", True
+            if fn in unique_functions:
+                self.possible_numbers = [n for n in self.possible_numbers if unique_functions[fn](n) == yes]
 
-    return next_question()
+            if self.possible_numbers:
+                self.min = min(self.possible_numbers)
+                self.max = max(self.possible_numbers)
+
+        if len(self.possible_numbers) == 0:
+            return "Вы меня запутали 🙃"
+        elif len(self.possible_numbers) == 1:
+            self.awaiting_final_confirmation = True
+            return f"Я знаю! Это число {self.possible_numbers[0]}"
+        else:
+            return self.next_question()
